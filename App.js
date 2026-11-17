@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
+  BackHandler,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -274,45 +276,84 @@ const hora = (d) =>
   `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const nomes = (caminho) => caminho.map((id) => LOCAIS[id].nome).join(' → ');
 
-/* ---------- Cartão: caixa com título para organizar as seções ---------- */
-function Cartao({ titulo, dica, children }) {
+/* ---------- Folha: janelinha que sobe de baixo da tela ---------- */
+function Folha({ visivel, titulo, aoFechar, children }) {
   return (
-    <View style={estilos.cartao}>
-      <Text style={estilos.cartaoTitulo}>{titulo}</Text>
-      {dica ? <Text style={estilos.dica}>{dica}</Text> : null}
-      {children}
-    </View>
+    <Modal visible={visivel} transparent animationType="slide" onRequestClose={aoFechar}>
+      <View style={estilos.folhaFundo}>
+        <TouchableOpacity
+          style={estilos.folhaSombra}
+          activeOpacity={1}
+          onPress={aoFechar}
+          accessibilityLabel="Fechar a janela"
+        />
+        <View style={estilos.folha}>
+          <View style={estilos.folhaTopo}>
+            <Text style={estilos.folhaTitulo}>{titulo}</Text>
+            <TouchableOpacity
+              onPress={aoFechar}
+              style={estilos.folhaFechar}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar"
+            >
+              <Text style={estilos.folhaFecharTexto}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
-/* ---------- Escolha de um local (lista de botões rolável) ---------- */
-function Escolha({ titulo, ids, valor, aoEscolher }) {
+/* ---------- Lista de locais para escolher (dentro da janelinha) ---------- */
+function ListaLocais({ ids, valor, aoEscolher }) {
   return (
-    <View style={estilos.bloco}>
-      <Text style={estilos.rotulo}>{titulo}</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={estilos.chips}
-      >
-        {ids.map((id) => {
-          const ativo = id === valor;
-          return (
-            <TouchableOpacity
-              key={id}
-              onPress={() => aoEscolher(id)}
-              style={[estilos.chip, ativo && estilos.chipAtivo]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: ativo }}
-            >
-              <Text style={[estilos.chipTexto, ativo && estilos.chipTextoAtivo]}>
-                {LOCAIS[id].nome}
+    <>
+      {ids.map((id) => {
+        const ativo = id === valor;
+        const tipo = LOCAIS[id].tipo;
+        return (
+          <TouchableOpacity
+            key={id}
+            onPress={() => aoEscolher(id)}
+            style={[estilos.opcao, ativo && estilos.opcaoAtiva]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: ativo }}
+          >
+            <View style={[estilos.opcaoNumero, { backgroundColor: COR_TIPO[tipo] }]}>
+              <Text
+                style={[estilos.opcaoNumeroTexto, { color: tipo === 'passagem' ? cor.papel : cor.tinta }]}
+              >
+                {id}
               </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
+            </View>
+            <Text style={[estilos.opcaoNome, ativo && estilos.opcaoNomeAtivo]}>{LOCAIS[id].nome}</Text>
+            {ativo ? <Text style={estilos.opcaoMarca}>Escolhido</Text> : null}
+          </TouchableOpacity>
+        );
+      })}
+    </>
+  );
+}
+
+/* ---------- Uma linha do resumo do pedido: mostra o valor e abre a janelinha ---------- */
+function LinhaPedido({ rotulo, valor, aoAbrir, semBorda }) {
+  return (
+    <TouchableOpacity
+      onPress={aoAbrir}
+      style={[estilos.linhaPedido, semBorda && { borderBottomWidth: 0 }]}
+      accessibilityRole="button"
+      accessibilityLabel={`${rotulo}: ${valor}. Toque para alterar`}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={estilos.linhaRotulo}>{rotulo}</Text>
+        <Text style={estilos.linhaValor}>{valor}</Text>
+      </View>
+      <Text style={estilos.linhaAcao}>Alterar</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -451,18 +492,14 @@ function Mapa({ largura, segmentos, andamento, empecilhos, pontos, analise }) {
 }
 
 /* ---------- Tabela: qual número é qual local ---------- */
+const COR_TITULO_GRUPO = { cozinha: '#B25E14', entrega: '#3E64C9', passagem: cor.pedra };
+
 function TabelaLocais({ papeis }) {
   return (
-    <View style={estilos.tabela}>
-      <Text style={estilos.tabelaTitulo}>O que cada número significa</Text>
+    <View>
       {GRUPOS.map((grupo) => (
         <View key={grupo.tipo} style={estilos.grupo}>
-          <Text
-            style={[
-              estilos.grupoTitulo,
-              { color: grupo.tipo === 'passagem' ? '#9DB8A9' : COR_TIPO[grupo.tipo] },
-            ]}
-          >
+          <Text style={[estilos.grupoTitulo, { color: COR_TITULO_GRUPO[grupo.tipo] }]}>
             {grupo.titulo}
           </Text>
           <View style={estilos.grupoItens}>
@@ -501,9 +538,8 @@ function Velocidade({ valor, aoMudar }) {
     aoMudar(Math.min(VELOCIDADE_MAX_SEG, Math.max(VELOCIDADE_MIN, novo)));
   };
   return (
-    <View style={estilos.velocidade}>
-      <Text style={estilos.velocidadeTitulo}>Velocidade da animação</Text>
-      <Text style={estilos.velocidadeDica}>
+    <View>
+      <Text style={estilos.dica}>
         Quanto tempo real dura 1 minuto da entrega. Menos segundos, animação mais rápida.
       </Text>
       <View style={estilos.velocidadeLinha}>
@@ -632,11 +668,17 @@ function Passos({ titulo, dados }) {
 }
 
 /* ============================================================
-   PARTE 3 - TELA PRINCIPAL
+   PARTE 3 - TELAS (início, mapa e passo a passo) E JANELINHAS
    ============================================================ */
 export default function App() {
   const { width } = useWindowDimensions();
   const larguraMapa = width - 40 - 32; // margem da tela e margem interna do painel
+
+  // Qual tela está aberta: 'inicio', 'mapa' ou 'passos'
+  const [tela, setTela] = useState('inicio');
+  // Qual janelinha está aberta (e se está aberta)
+  const [folha, setFolha] = useState('entregador');
+  const [folhaAberta, setFolhaAberta] = useState(false);
 
   // O que o usuário escolheu
   const [entregador, setEntregador] = useState(16);
@@ -649,22 +691,30 @@ export default function App() {
   const [plano, setPlano] = useState(null);
   const [semEmpecilhos, setSemEmpecilhos] = useState(null);
   const [calculando, setCalculando] = useState(false);
-  const [mostrarPassos, setMostrarPassos] = useState(false);
+  const [mostrarAnalise, setMostrarAnalise] = useState(false); // anéis do A* no mapa
   const [chegada, setChegada] = useState(null);
   const [segmentos, setSegmentos] = useState([]); // a rota quebrada em ruas
   const [andamento, setAndamento] = useState(0); // minutos simulados já percorridos
   const [animando, setAnimando] = useState(false); // o entregador está andando?
 
+  const abrirFolha = (nome) => {
+    setFolha(nome);
+    setFolhaAberta(true);
+  };
+  const fecharFolha = () => setFolhaAberta(false);
+
   // Ao mudar qualquer escolha, o resultado antigo deixa de valer
   const limpar = () => {
     setPlano(null);
-    setMostrarPassos(false);
+    setSegmentos([]);
+    setMostrarAnalise(false);
     setAnimando(false);
     setAndamento(0);
   };
-  const escolher = (setter) => (valor) => {
+  const escolherLocal = (setter) => (valor) => {
     setter(valor);
     limpar();
+    fecharFolha();
   };
 
   // Toque em uma rua: passa para o próximo estado (livre, obra, alagada...)
@@ -682,7 +732,7 @@ export default function App() {
   // Botão "Calcular estimativa de entrega"
   const calcular = () => {
     setCalculando(true);
-    setMostrarPassos(false);
+    setMostrarAnalise(false);
     // Uma pequena pausa só para parecer um sistema real buscando a rota
     setTimeout(() => {
       const resultado = planejar(empecilhos, entregador, cozinha, destino);
@@ -691,13 +741,40 @@ export default function App() {
       setChegada(new Date(Date.now() + resultado.total * 60000));
       setSegmentos(resultado.ok ? montarSegmentos(resultado) : []);
       setAndamento(0);
-      setAnimando(resultado.ok); // começa a animação sozinho
+      setAnimando(false); // a animação começa quando o usuário abrir o mapa
       setCalculando(false);
     }, 700);
   };
 
-  const temEmpecilho = Object.keys(empecilhos).length > 0;
-  const total = plano && plano.ok ? plano.total : 0;
+  const okPlano = Boolean(plano && plano.ok);
+  const total = okPlano ? plano.total : 0;
+  const nProblemas = Object.keys(empecilhos).length;
+
+  // Navegação entre telas
+  const abrirMapa = (iniciar) => {
+    if (iniciar && okPlano) {
+      setAndamento(0);
+      setAnimando(true);
+    }
+    setTela('mapa');
+  };
+  const voltar = () => {
+    setAnimando(false);
+    setTela('inicio');
+  };
+
+  // Botão "voltar" do Android: volta para o início em vez de fechar o app
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (tela !== 'inicio') {
+        setAnimando(false);
+        setTela('inicio');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [tela]);
 
   // Enquanto animando, a cada 40 milissegundos o relógio simulado avança um pouquinho.
   // Se a velocidade mudar no meio da animação, o relógio continua de onde estava.
@@ -734,7 +811,7 @@ export default function App() {
 
   // Frase que diz em que fase da entrega o entregador está
   let statusTexto = '';
-  if (plano && plano.ok) {
+  if (okPlano) {
     if (andamento >= total) {
       statusTexto = 'Pedido entregue.';
     } else if (andamento < plano.trecho1.tempo) {
@@ -753,193 +830,312 @@ export default function App() {
   marcar(cozinha, 'cozinha do pedido');
   marcar(destino, 'seu destino');
 
-  // Análise do A* no mapa: só aparece quando o passo a passo está aberto
+  // Análise do A* no mapa: só aparece quando o usuário liga
   const analise =
-    plano && plano.ok && mostrarPassos
+    okPlano && mostrarAnalise
       ? {
           caminho: new Set([...plano.trecho1.caminho, ...plano.trecho2.caminho]),
           expandidos: new Set([...plano.trecho1.passos, ...plano.trecho2.passos].map((p) => p.no)),
         }
       : null;
 
+  // A tela do passo a passo só existe se houver um resultado
+  const telaAtual = tela === 'passos' && !okPlano ? 'inicio' : tela;
+
+  // Título e conteúdo da janelinha aberta
+  const titulosFolha = {
+    entregador: 'Onde está o entregador',
+    cozinha: 'Cozinha que prepara o pedido',
+    destino: 'Onde você quer receber',
+    ruas: 'Ruas com problema',
+    velocidade: 'Velocidade da animação',
+    locais: 'O que cada número significa',
+  };
+
+  // Barra de cima das telas internas
+  const barraTopo = (titulo) => (
+    <View style={estilos.barraTopo}>
+      <TouchableOpacity
+        onPress={voltar}
+        style={estilos.voltar}
+        accessibilityRole="button"
+        accessibilityLabel="Voltar para o início"
+      >
+        <Text style={estilos.voltarTexto}>‹ Voltar</Text>
+      </TouchableOpacity>
+      <Text style={estilos.telaTitulo}>{titulo}</Text>
+    </View>
+  );
+
   return (
     <View style={estilos.tela}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={estilos.conteudo} showsVerticalScrollIndicator={false}>
-        {/* Cabeçalho */}
-        <View style={estilos.topo}>
-          <Text style={estilos.logo}>
-            Macro<Text style={{ color: cor.folha }}>Drop</Text>
-          </Text>
-          <View style={estilos.selo}>
-            <Text style={estilos.seloTexto}>Simulação do A*</Text>
+
+      {/* ---------- TELA 1: INÍCIO ---------- */}
+      {telaAtual === 'inicio' && (
+        <ScrollView contentContainerStyle={estilos.conteudo} showsVerticalScrollIndicator={false}>
+          <View style={estilos.topo}>
+            <Text style={estilos.logo}>
+              Macro<Text style={{ color: cor.folha }}>Drop</Text>
+            </Text>
+            <View style={estilos.selo}>
+              <Text style={estilos.seloTexto}>Simulação do A*</Text>
+            </View>
           </View>
-        </View>
-        <Text style={estilos.chamada}>Sua refeição chega onde você estiver.</Text>
+          <Text style={estilos.chamada}>Sua refeição chega onde você estiver.</Text>
 
-        {/* Seção 1: o pedido */}
-        <Cartao titulo="Seu pedido">
-          <Escolha
-            titulo="Onde está o entregador"
-            ids={ENTREGADOR_IDS}
-            valor={entregador}
-            aoEscolher={escolher(setEntregador)}
-          />
-          <Escolha
-            titulo="Cozinha que prepara o pedido"
-            ids={COZINHA_IDS}
-            valor={cozinha}
-            aoEscolher={escolher(setCozinha)}
-          />
-          <Escolha
-            titulo="Onde você quer receber"
-            ids={DESTINO_IDS}
-            valor={destino}
-            aoEscolher={escolher(setDestino)}
-          />
-        </Cartao>
+          {/* Resumo do pedido: cada linha abre uma janelinha para alterar */}
+          <View style={estilos.cartao}>
+            <Text style={estilos.cartaoTitulo}>Seu pedido</Text>
+            <LinhaPedido
+              rotulo="Entregador está em"
+              valor={`${LOCAIS[entregador].nome} (ponto ${entregador})`}
+              aoAbrir={() => abrirFolha('entregador')}
+            />
+            <LinhaPedido
+              rotulo="Cozinha"
+              valor={`${LOCAIS[cozinha].nome} (ponto ${cozinha})`}
+              aoAbrir={() => abrirFolha('cozinha')}
+            />
+            <LinhaPedido
+              rotulo="Receber em"
+              valor={`${LOCAIS[destino].nome} (ponto ${destino})`}
+              aoAbrir={() => abrirFolha('destino')}
+            />
+            <LinhaPedido
+              rotulo="Ruas com problema"
+              valor={
+                nProblemas === 0
+                  ? 'Todas as ruas livres'
+                  : `${nProblemas} ${nProblemas === 1 ? 'rua com problema' : 'ruas com problema'}`
+              }
+              aoAbrir={() => abrirFolha('ruas')}
+              semBorda
+            />
+          </View>
 
-        {/* Seção 2: problemas nas ruas */}
-        <Cartao titulo="Ruas com problema" dica="Toque em uma rua para mudar o estado dela.">
-          {RUAS_MONITORADAS.map(([a, b]) => {
-            const estado = empecilhos[chave(a, b)] || 'livre';
-            const corEstado =
-              estado === 'livre' ? cor.pedra : estado === 'bloqueada' ? cor.alerta : cor.aviso;
-            return (
+          <TouchableOpacity
+            onPress={calcular}
+            disabled={calculando}
+            style={[estilos.botao, calculando && { opacity: 0.6 }]}
+            accessibilityRole="button"
+          >
+            <Text style={estilos.botaoTexto}>
+              {calculando ? 'Calculando a melhor rota...' : 'Calcular estimativa de entrega'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Antes de calcular, dá para ver só o mapa */}
+          {!okPlano && (
+            <TouchableOpacity
+              onPress={() => abrirMapa(false)}
+              style={estilos.botaoSecundario}
+              accessibilityRole="button"
+            >
+              <Text style={estilos.botaoSecundarioTexto}>Ver o mapa da região</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Resultado: só o essencial. O resto fica em outras telas */}
+          {okPlano && (
+            <View style={estilos.resultado}>
+              <Text style={estilos.resultadoRotulo}>Chegada estimada</Text>
+              <Text style={estilos.hora}>{hora(chegada)}</Text>
+              <Text style={estilos.resultadoMinutos}>em {min(plano.total)}</Text>
+              {nProblemas > 0 && semEmpecilhos && (
+                <Text style={estilos.resultadoNota}>
+                  Sem os problemas nas ruas seriam {min(semEmpecilhos.total)} (
+                  {plano.total - semEmpecilhos.total > 0.005
+                    ? `+${min(plano.total - semEmpecilhos.total)}`
+                    : 'sem diferença'}
+                  ).
+                </Text>
+              )}
+
+              <View style={estilos.divisor} />
+
+              <Trecho titulo="Retirada na cozinha" corBarra={cor.cenoura} dados={plano.trecho1} />
+              <Trecho titulo="Entrega ao cliente" corBarra={cor.mirtilo} dados={plano.trecho2} />
+
               <TouchableOpacity
-                key={chave(a, b)}
-                onPress={() => mudarRua(a, b)}
-                style={estilos.rua}
+                onPress={() => abrirMapa(true)}
+                style={[estilos.botao, { marginTop: 4 }]}
                 accessibilityRole="button"
               >
-                <Text style={estilos.ruaNome}>
-                  {LOCAIS[a].nome} e {LOCAIS[b].nome}
-                </Text>
-                <View style={[estilos.estado, { borderColor: corEstado }]}>
-                  <Text style={[estilos.estadoTexto, { color: corEstado }]}>{estado}</Text>
-                </View>
+                <Text style={estilos.botaoTexto}>Acompanhar a entrega no mapa</Text>
               </TouchableOpacity>
-            );
-          })}
-        </Cartao>
+              <TouchableOpacity
+                onPress={() => setTela('passos')}
+                style={estilos.link}
+                accessibilityRole="button"
+              >
+                <Text style={estilos.linkTexto}>Ver como o A* decidiu a rota</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {/* Botão principal */}
-        <TouchableOpacity
-          onPress={calcular}
-          disabled={calculando}
-          style={[estilos.botao, calculando && { opacity: 0.6 }]}
-          accessibilityRole="button"
-        >
-          <Text style={estilos.botaoTexto}>
-            {calculando ? 'Calculando a melhor rota...' : 'Calcular estimativa de entrega'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Resultado */}
-        {plano && plano.ok && (
-          <View style={estilos.resultado}>
-            <Text style={estilos.resultadoRotulo}>Chegada estimada</Text>
-            <Text style={estilos.hora}>{hora(chegada)}</Text>
-            <Text style={estilos.resultadoMinutos}>em {min(plano.total)}</Text>
-            {temEmpecilho && semEmpecilhos && (
+          {plano && !plano.ok && (
+            <View style={estilos.resultado}>
+              <Text style={estilos.erroTitulo}>Não existe caminho</Text>
               <Text style={estilos.resultadoNota}>
-                Sem os problemas nas ruas seriam {min(semEmpecilhos.total)} (
-                {plano.total - semEmpecilhos.total > 0.005
-                  ? `+${min(plano.total - semEmpecilhos.total)}`
-                  : 'sem diferença'}
-                ).
+                Os problemas nas ruas isolaram um dos pontos. Deixe uma rua como livre e calcule de
+                novo.
               </Text>
+            </View>
+          )}
+
+          <Text style={estilos.rodape}>
+            Base de dados autoral do grupo. Locais, ruas e trânsito são fictícios.
+          </Text>
+        </ScrollView>
+      )}
+
+      {/* ---------- TELA 2: MAPA ---------- */}
+      {telaAtual === 'mapa' && (
+        <ScrollView contentContainerStyle={estilos.conteudo} showsVerticalScrollIndicator={false}>
+          {barraTopo('Mapa da entrega')}
+
+          <View style={estilos.painelMapa}>
+            {okPlano && (
+              <View style={estilos.andamento}>
+                <Text style={estilos.andamentoTexto}>{statusTexto}</Text>
+                <View style={estilos.barra}>
+                  <View
+                    style={[estilos.barraCheia, { width: `${Math.round((andamento / total) * 100)}%` }]}
+                  />
+                </View>
+              </View>
+            )}
+            <Mapa
+              largura={larguraMapa}
+              segmentos={segmentos}
+              andamento={andamento}
+              empecilhos={empecilhos}
+              pontos={[entregador, cozinha, destino]}
+              analise={analise}
+            />
+            <Text style={estilos.mapaNota}>
+              {okPlano
+                ? 'Laranja é o trecho da retirada. Azul é o trecho da entrega. Rua tracejada tem problema.'
+                : 'Calcule uma entrega para ver a rota aqui. Rua tracejada tem problema.'}
+            </Text>
+
+            {analise && <LegendaAnalise escuro />}
+
+            {okPlano && (
+              <TouchableOpacity onPress={controlar} style={estilos.botaoMapa} accessibilityRole="button">
+                <Text style={estilos.botaoMapaTexto}>{rotuloControle}</Text>
+              </TouchableOpacity>
+            )}
+            {okPlano && (
+              <TouchableOpacity
+                onPress={() => setMostrarAnalise(!mostrarAnalise)}
+                style={[estilos.chipAnalise, mostrarAnalise && estilos.chipAnaliseAtivo]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mostrarAnalise }}
+              >
+                <Text style={[estilos.chipAnaliseTexto, mostrarAnalise && estilos.chipAnaliseTextoAtivo]}>
+                  {mostrarAnalise ? 'Esconder a análise do A* no mapa' : 'Mostrar a análise do A* no mapa'}
+                </Text>
+              </TouchableOpacity>
             )}
 
-            <View style={estilos.divisor} />
+            <View style={estilos.duasAcoes}>
+              <TouchableOpacity
+                onPress={() => abrirFolha('velocidade')}
+                style={estilos.acao}
+                accessibilityRole="button"
+              >
+                <Text style={estilos.acaoRotulo}>Velocidade</Text>
+                <Text style={estilos.acaoValor}>{seg(segPorMinuto)} por minuto</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => abrirFolha('locais')}
+                style={estilos.acao}
+                accessibilityRole="button"
+              >
+                <Text style={estilos.acaoRotulo}>Locais</Text>
+                <Text style={estilos.acaoValor}>O que cada número é</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      )}
 
-            <Trecho titulo="Retirada na cozinha" corBarra={cor.cenoura} dados={plano.trecho1} />
-            <Trecho titulo="Entrega ao cliente" corBarra={cor.mirtilo} dados={plano.trecho2} />
+      {/* ---------- TELA 3: PASSO A PASSO DO A* ---------- */}
+      {telaAtual === 'passos' && okPlano && (
+        <ScrollView contentContainerStyle={estilos.conteudo} showsVerticalScrollIndicator={false}>
+          {barraTopo('Como o A* decidiu')}
 
+          <View style={estilos.cartao}>
             <Text style={estilos.resultadoNota}>
               O A* analisou {plano.trecho1.expandidos + plano.trecho2.expandidos} de{' '}
               {2 * Object.keys(LOCAIS).length} pontos possíveis.
             </Text>
-
-            <TouchableOpacity
-              onPress={() => setMostrarPassos(!mostrarPassos)}
-              style={estilos.link}
-              accessibilityRole="button"
-            >
-              <Text style={estilos.linkTexto}>
-                {mostrarPassos ? 'Esconder o passo a passo' : 'Ver o passo a passo do A*'}
-              </Text>
-            </TouchableOpacity>
-
-            {mostrarPassos && (
-              <View>
-                <Text style={estilos.explicacao}>
-                  g é o tempo já gasto até o ponto. h é o palpite do que falta, em linha reta. f é g
-                  mais h: o A* sempre analisa primeiro o ponto de menor f. Os pontos analisados também
-                  aparecem com anéis no mapa.
-                </Text>
-                <LegendaAnalise />
-                <Passos titulo="Retirada na cozinha" dados={plano.trecho1} />
-                <Passos titulo="Entrega ao cliente" dados={plano.trecho2} />
-              </View>
-            )}
-          </View>
-        )}
-
-        {plano && !plano.ok && (
-          <View style={estilos.resultado}>
-            <Text style={estilos.erroTitulo}>Não existe caminho</Text>
-            <Text style={estilos.resultadoNota}>
-              Os problemas nas ruas isolaram um dos pontos. Deixe uma rua como livre e calcule de
-              novo.
+            <Text style={estilos.explicacao}>
+              g é o tempo já gasto até o ponto. h é o palpite do que falta, em linha reta. f é g mais
+              h: o A* sempre analisa primeiro o ponto de menor f.
             </Text>
+            <LegendaAnalise />
+          </View>
+
+          <View style={estilos.cartao}>
+            <Passos titulo="Retirada na cozinha" dados={plano.trecho1} />
+            <Passos titulo="Entrega ao cliente" dados={plano.trecho2} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => {
+              setMostrarAnalise(true);
+              setTela('mapa');
+            }}
+            style={estilos.botao}
+            accessibilityRole="button"
+          >
+            <Text style={estilos.botaoTexto}>Ver esses pontos no mapa</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* ---------- JANELINHA (serve para todas as escolhas) ---------- */}
+      <Folha visivel={folhaAberta} titulo={titulosFolha[folha]} aoFechar={fecharFolha}>
+        {folha === 'entregador' && (
+          <ListaLocais ids={ENTREGADOR_IDS} valor={entregador} aoEscolher={escolherLocal(setEntregador)} />
+        )}
+        {folha === 'cozinha' && (
+          <ListaLocais ids={COZINHA_IDS} valor={cozinha} aoEscolher={escolherLocal(setCozinha)} />
+        )}
+        {folha === 'destino' && (
+          <ListaLocais ids={DESTINO_IDS} valor={destino} aoEscolher={escolherLocal(setDestino)} />
+        )}
+        {folha === 'ruas' && (
+          <View>
+            <Text style={estilos.dica}>Toque em uma rua para mudar o estado dela.</Text>
+            {RUAS_MONITORADAS.map(([a, b]) => {
+              const estado = empecilhos[chave(a, b)] || 'livre';
+              const corEstado =
+                estado === 'livre' ? cor.pedra : estado === 'bloqueada' ? cor.alerta : cor.aviso;
+              return (
+                <TouchableOpacity
+                  key={chave(a, b)}
+                  onPress={() => mudarRua(a, b)}
+                  style={estilos.rua}
+                  accessibilityRole="button"
+                >
+                  <Text style={estilos.ruaNome}>
+                    {LOCAIS[a].nome} e {LOCAIS[b].nome}
+                  </Text>
+                  <View style={[estilos.estado, { borderColor: corEstado }]}>
+                    <Text style={[estilos.estadoTexto, { color: corEstado }]}>{estado}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
-
-        {/* Mapa */}
-        <View style={estilos.painelMapa}>
-          <Text style={estilos.mapaTitulo}>Mapa da região</Text>
-          {plano && plano.ok && (
-            <View style={estilos.andamento}>
-              <Text style={estilos.andamentoTexto}>{statusTexto}</Text>
-              <View style={estilos.barra}>
-                <View
-                  style={[estilos.barraCheia, { width: `${Math.round((andamento / total) * 100)}%` }]}
-                />
-              </View>
-            </View>
-          )}
-          <Mapa
-            largura={larguraMapa}
-            segmentos={segmentos}
-            andamento={andamento}
-            empecilhos={empecilhos}
-            pontos={[entregador, cozinha, destino]}
-            analise={analise}
-          />
-          <Text style={estilos.mapaNota}>
-            {plano && plano.ok
-              ? 'Laranja é o trecho da retirada. Azul é o trecho da entrega. Rua tracejada tem problema.'
-              : 'Escolha os três pontos e calcule: a rota aparece aqui. Rua tracejada tem problema.'}
-          </Text>
-
-          {analise && <LegendaAnalise escuro />}
-
-          {plano && plano.ok && (
-            <TouchableOpacity onPress={controlar} style={estilos.botaoMapa} accessibilityRole="button">
-              <Text style={estilos.botaoMapaTexto}>{rotuloControle}</Text>
-            </TouchableOpacity>
-          )}
-
-          <Velocidade valor={segPorMinuto} aoMudar={setSegPorMinuto} />
-
-          <TabelaLocais papeis={papeis} />
-        </View>
-
-        <Text style={estilos.rodape}>
-          Base de dados autoral do grupo. Locais, ruas e trânsito são fictícios.
-        </Text>
-      </ScrollView>
+        {folha === 'velocidade' && <Velocidade valor={segPorMinuto} aoMudar={setSegPorMinuto} />}
+        {folha === 'locais' && <TabelaLocais papeis={papeis} />}
+      </Folha>
     </View>
   );
 }
@@ -967,44 +1163,34 @@ const estilos = StyleSheet.create({
   seloTexto: { color: cor.folha, fontSize: 13, fontWeight: '600' },
   chamada: { marginTop: 6, fontSize: 16, color: cor.pedra, lineHeight: 22 },
 
+  barraTopo: { marginBottom: 4 },
+  voltar: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  voltarTexto: { fontSize: 17, fontWeight: '700', color: cor.folha },
+  telaTitulo: { fontSize: 28, fontWeight: '800', color: cor.tinta, letterSpacing: -0.5 },
+
   cartao: {
     marginTop: 20,
-    padding: 18,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 6,
     borderRadius: 20,
     backgroundColor: cor.branco,
     borderWidth: 1,
     borderColor: cor.linha,
   },
-  cartaoTitulo: { fontSize: 20, fontWeight: '800', color: cor.tinta },
+  cartaoTitulo: { fontSize: 20, fontWeight: '800', color: cor.tinta, marginBottom: 4 },
+  dica: { marginTop: 2, marginBottom: 8, fontSize: 14, color: cor.pedra, lineHeight: 20 },
 
-  bloco: { marginTop: 16 },
-  rotulo: { fontSize: 15, fontWeight: '700', color: cor.tinta },
-  dica: { marginTop: 2, fontSize: 14, color: cor.pedra },
-  chips: { paddingTop: 10, paddingRight: 20, gap: 8 },
-  chip: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: cor.linha,
-    backgroundColor: cor.papel,
-  },
-  chipAtivo: { backgroundColor: cor.tinta, borderColor: cor.tinta },
-  chipTexto: { fontSize: 15, color: cor.tinta, fontWeight: '500' },
-  chipTextoAtivo: { color: cor.papel, fontWeight: '700' },
-
-  rua: {
-    minHeight: 48,
+  linhaPedido: {
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: cor.linha,
   },
-  ruaNome: { fontSize: 15, color: cor.tinta, flex: 1, paddingRight: 12 },
-  estado: { borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  estadoTexto: { fontSize: 14, fontWeight: '700' },
+  linhaRotulo: { fontSize: 13, color: cor.pedra },
+  linhaValor: { marginTop: 2, fontSize: 16, fontWeight: '700', color: cor.tinta },
+  linhaAcao: { fontSize: 15, fontWeight: '700', color: cor.folha, paddingLeft: 12 },
 
   botao: {
     marginTop: 24,
@@ -1016,6 +1202,17 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 16,
   },
   botaoTexto: { color: cor.branco, fontSize: 17, fontWeight: '700' },
+  botaoSecundario: {
+    marginTop: 12,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: cor.folha,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  botaoSecundarioTexto: { color: cor.folha, fontSize: 16, fontWeight: '700' },
 
   resultado: {
     marginTop: 20,
@@ -1034,7 +1231,7 @@ const estilos = StyleSheet.create({
     fontWeight: '700',
   },
   resultadoMinutos: { fontSize: 18, color: cor.folha, fontWeight: '700' },
-  resultadoNota: { marginTop: 12, fontSize: 14, color: cor.pedra, lineHeight: 20 },
+  resultadoNota: { marginTop: 4, marginBottom: 8, fontSize: 14, color: cor.pedra, lineHeight: 20 },
   divisor: { height: 1, backgroundColor: cor.linha, marginVertical: 18 },
   erroTitulo: { fontSize: 20, fontWeight: '800', color: cor.alerta },
 
@@ -1045,16 +1242,16 @@ const estilos = StyleSheet.create({
   trechoTempo: { fontSize: 16, fontWeight: '700', color: cor.tinta },
   trechoCaminho: { marginTop: 3, fontSize: 14, color: cor.pedra, lineHeight: 20 },
 
-  link: { marginTop: 14, minHeight: 44, justifyContent: 'center' },
+  link: { marginTop: 8, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   linkTexto: { color: cor.folha, fontSize: 15, fontWeight: '700' },
 
-  explicacao: { marginTop: 4, fontSize: 14, color: cor.pedra, lineHeight: 20 },
-  legendaAnalise: { marginTop: 12, gap: 8 },
+  explicacao: { marginBottom: 4, fontSize: 14, color: cor.pedra, lineHeight: 20 },
+  legendaAnalise: { marginTop: 12, marginBottom: 12, gap: 8 },
   legendaLinha: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   legendaTexto: { fontSize: 14, flex: 1, lineHeight: 19 },
   anel: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
 
-  passosGrupo: { marginTop: 20 },
+  passosGrupo: { marginBottom: 14 },
   passosTitulo: { fontSize: 16, fontWeight: '700', color: cor.tinta },
   passosResumo: { marginTop: 2, marginBottom: 10, fontSize: 14, color: cor.pedra, lineHeight: 20 },
   passo: {
@@ -1077,83 +1274,154 @@ const estilos = StyleSheet.create({
   passoNumeros: { marginTop: 2, fontSize: 14, color: cor.tinta },
 
   painelMapa: {
-    marginTop: 20,
+    marginTop: 12,
     padding: 16,
     borderRadius: 24,
     backgroundColor: cor.tinta,
   },
-  mapaTitulo: { fontSize: 20, fontWeight: '800', color: cor.papel, marginBottom: 10 },
   mapaNota: { marginTop: 10, fontSize: 14, color: '#B7C6BC', lineHeight: 20 },
-
   andamento: { marginBottom: 12 },
   andamentoTexto: { fontSize: 15, color: cor.papel, lineHeight: 21 },
   barra: { height: 6, borderRadius: 3, backgroundColor: '#2A4A3A', marginTop: 8 },
   barraCheia: { height: 6, borderRadius: 3, backgroundColor: cor.menta },
   botaoMapa: {
     marginTop: 14,
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: cor.menta,
+    backgroundColor: cor.menta,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  botaoMapaTexto: { color: cor.menta, fontSize: 15, fontWeight: '700' },
-
-  velocidade: {
-    marginTop: 20,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#1B3428',
+  botaoMapaTexto: { color: cor.tinta, fontSize: 16, fontWeight: '800' },
+  chipAnalise: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#3C5A4B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  velocidadeTitulo: { fontSize: 16, fontWeight: '700', color: cor.papel },
-  velocidadeDica: { marginTop: 2, fontSize: 14, color: '#B7C6BC', lineHeight: 20 },
+  chipAnaliseAtivo: { borderColor: cor.analisado },
+  chipAnaliseTexto: { color: cor.papel, fontSize: 15, fontWeight: '600' },
+  chipAnaliseTextoAtivo: { color: cor.analisado },
+  duasAcoes: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  acao: {
+    flex: 1,
+    minHeight: 64,
+    borderRadius: 12,
+    backgroundColor: '#1B3428',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  acaoRotulo: { fontSize: 15, fontWeight: '700', color: cor.papel },
+  acaoValor: { marginTop: 2, fontSize: 13, color: '#B7C6BC' },
+
+  /* janelinha */
+  folhaFundo: { flex: 1, justifyContent: 'flex-end' },
+  folhaSombra: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,37,28,0.5)' },
+  folha: {
+    maxHeight: '85%',
+    backgroundColor: cor.branco,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+  },
+  folhaTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  folhaTitulo: { flex: 1, fontSize: 20, fontWeight: '800', color: cor.tinta, paddingRight: 12 },
+  folhaFechar: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
+  folhaFecharTexto: { fontSize: 16, fontWeight: '700', color: cor.folha },
+
+  opcao: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: cor.linha,
+  },
+  opcaoAtiva: { backgroundColor: '#E8F3EC' },
+  opcaoNumero: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#6E8F7D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  opcaoNumeroTexto: { fontSize: 15, fontWeight: '800' },
+  opcaoNome: { flex: 1, fontSize: 16, color: cor.tinta, fontWeight: '500' },
+  opcaoNomeAtivo: { fontWeight: '800' },
+  opcaoMarca: { fontSize: 14, fontWeight: '700', color: cor.folha },
+
+  rua: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: cor.linha,
+  },
+  ruaNome: { fontSize: 15, color: cor.tinta, flex: 1, paddingRight: 12 },
+  estado: { borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  estadoTexto: { fontSize: 14, fontWeight: '700' },
+
   velocidadeLinha: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   velocidadeBotao: {
-    width: 52,
-    minHeight: 48,
+    width: 64,
+    minHeight: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: cor.menta,
+    borderColor: cor.folha,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  velocidadeBotaoTexto: { color: cor.menta, fontSize: 26, fontWeight: '700', lineHeight: 30 },
-  velocidadeValor: { fontSize: 26, fontWeight: '800', color: cor.papel },
-  velocidadeAtalhos: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  velocidadeBotaoTexto: { color: cor.folha, fontSize: 28, fontWeight: '700', lineHeight: 32 },
+  velocidadeValor: { fontSize: 30, fontWeight: '800', color: cor.tinta },
+  velocidadeAtalhos: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   atalho: {
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#3C5A4B',
+    borderColor: cor.linha,
   },
-  atalhoAtivo: { backgroundColor: cor.menta, borderColor: cor.menta },
-  atalhoTexto: { fontSize: 14, color: cor.papel, fontWeight: '600' },
-  atalhoTextoAtivo: { color: cor.tinta, fontWeight: '800' },
+  atalhoAtivo: { backgroundColor: cor.tinta, borderColor: cor.tinta },
+  atalhoTexto: { fontSize: 15, color: cor.tinta, fontWeight: '600' },
+  atalhoTextoAtivo: { color: cor.papel, fontWeight: '800' },
 
-  tabela: { marginTop: 20 },
-  tabelaTitulo: { fontSize: 16, fontWeight: '700', color: cor.papel },
-  grupo: { marginTop: 14 },
-  grupoTitulo: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  grupo: { marginTop: 8, marginBottom: 4 },
+  grupoTitulo: { fontSize: 15, fontWeight: '800', marginBottom: 10 },
   grupoItens: { flexDirection: 'row', flexWrap: 'wrap' },
   item: {
     width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   itemNumero: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#6E8F7D',
     alignItems: 'center',
@@ -1161,8 +1429,8 @@ const estilos = StyleSheet.create({
     marginRight: 10,
   },
   itemNumeroTexto: { fontSize: 14, fontWeight: '800' },
-  itemNome: { fontSize: 14, color: cor.papel, fontWeight: '600' },
-  itemPapel: { fontSize: 13, color: cor.menta, lineHeight: 17 },
+  itemNome: { fontSize: 14, color: cor.tinta, fontWeight: '600' },
+  itemPapel: { fontSize: 13, color: cor.folha, lineHeight: 17 },
 
   rodape: { marginTop: 24, fontSize: 13, color: cor.pedra, textAlign: 'center' },
 });
