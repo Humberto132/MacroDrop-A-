@@ -2,8 +2,6 @@
 
 **Rota de entrega dinâmica com o algoritmo A\***: do entregador à cozinha, da cozinha ao cliente.
 
-Projeto A3 de **Matemática Computacional Aplicada** (2026.2), UNP.
-
 O MacroDrop simula uma entrega de marmitas fit. O cliente não espera em casa: ele recebe o pedido na saída da academia ou no campus, então o destino é dinâmico e a comida precisa chegar rápido e ainda quente. O programa calcula a **rota mais rápida** (e não a mais curta) usando o algoritmo **A\*** sobre um grafo que representa um bairro com cozinhas, academias e um campus.
 
 O projeto tem duas versões que usam **exatamente a mesma lógica**:
@@ -215,13 +213,6 @@ O identificador do pacote Android é `com.equipea3.macrodrop`.
 
 ## Equipe
 
-**Docentes**
-
-- Profª Me. Edjane Azevêdo
-- Prof. Dr. Ronyclei Raimundo da Silva
-
-**Discentes**
-
 - Keven Silva Teixeira
 - Lucas Almeida Paiva Luna
 - Marcus Vinicius Ramos Silveira
@@ -229,11 +220,3 @@ O identificador do pacote Android é `com.equipea3.macrodrop`.
 - Humberto Dantas Bezerra Júnior
 - Bruno Henrique Fernandes Brito
 - Cesar Augusto Oliveira de Sousa
-
-## Referências
-
-- CORMEN, T. H. et al. *Algoritmos: teoria e prática*. 3. ed. Rio de Janeiro: Elsevier, 2012.
-- DIJKSTRA, E. W. A note on two problems in connexion with graphs. *Numerische Mathematik*, v. 1, p. 269–271, 1959.
-- HART, P. E.; NILSSON, N. J.; RAPHAEL, B. A formal basis for the heuristic determination of minimum cost paths. *IEEE Transactions on Systems Science and Cybernetics*, v. 4, n. 2, p. 100–107, 1968.
-- RUSSELL, S.; NORVIG, P. *Inteligência artificial*. 3. ed. Rio de Janeiro: Elsevier, 2013.
-- PYTHON SOFTWARE FOUNDATION. *heapq: heap queue algorithm*. Documentação do Python 3. Disponível em: <https://docs.python.org/3/library/heapq.html>.
